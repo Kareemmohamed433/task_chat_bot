@@ -1,0 +1,51 @@
+# Version control
+.git/
+.gitignore
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+.env/
+
+# Python caches and bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Environment files and credentials
+.env
+.env.*
+!.env.example
+
+# Local SQLite databases and backups
+# (tasks.db is included only as the baseline initial seed for named volume migration)
+*.db
+*.sqlite
+*.sqlite3
+!tasks.db
+tasks_backup.db
+
+# Test and coverage artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+
+# IDE and OS files
+.vscode/
+.idea/
+*.swp
+*.swo
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Submission archives
+*.zip
+ai_task_assistant_final_submission.zip
+
+# Temporary files and logs
+*.log

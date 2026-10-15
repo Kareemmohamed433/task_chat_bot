@@ -1,0 +1,65 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: task_assistant_api
+    command: [ "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1" ]
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=sqlite:////app/data/tasks.db
+      - INTENT_MODE=${INTENT_MODE:-deterministic}
+      - LLM_PROVIDER=${LLM_PROVIDER:-openai}
+      - LLM_API_KEY=${LLM_API_KEY:-}
+      - LLM_MODEL=${LLM_MODEL:-gpt-4o-mini}
+      - TIMEZONE=${TIMEZONE:-Asia/Riyadh}
+      - REFERENCE_DATETIME_OVERRIDE=${REFERENCE_DATETIME_OVERRIDE:-}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - TASK_ARCHIVE_RETENTION_DAYS=${TASK_ARCHIVE_RETENTION_DAYS:-30}
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - task_data:/app/data
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - task_network
+
+  streamlit:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: task_assistant_ui
+    command: [ "streamlit", "run", "streamlit_app.py", "--server.port", "8501", "--server.address", "0.0.0.0", "--server.headless", "true" ]
+    ports:
+      - "8501:8501"
+    environment:
+      - BACKEND_URL=http://api:8000
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8501/_stcore/health" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - task_network
+
+volumes:
+  task_data:
+    name: task_assistant_db_data
+
+networks:
+  task_network:
+    name: task_assistant_network
+    driver: bridge
