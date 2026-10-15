@@ -14,6 +14,7 @@ from app.services.authorization_service import AuthorizationService
 from app.services.intent_service import IntentService
 from app.services.policy_service import PolicyService
 from app.services.scheduling_service import SchedulingService
+from app.services.scope import is_company_scope
 
 logger = logging.getLogger(__name__)
 
@@ -365,13 +366,18 @@ class TaskService:
                 extractor_used=extracted.extractor_used,
             )
 
-        # 8. Handle Task Listing intents (list_employee_tasks, list_my_tasks)
-        if extracted.intent in [IntentType.LIST_EMPLOYEE_TASKS, IntentType.LIST_MY_TASKS]:
-            # Check if user requested all company tasks
-            is_company_query = bool(
-                re.search(r"\b(كل\s*مهام\s*الشركة|مهام\s*الشركة|جميع\s*مهام\s*الشركة)\b", message)
-            )
-
+        # 8. Handle Task Listing intents (list_employee_tasks, list_my_tasks) or company scope queries
+        is_company_query = is_company_scope(message)
+        if (
+            extracted.intent in [
+                IntentType.LIST_EMPLOYEE_TASKS,
+                IntentType.LIST_MY_TASKS,
+                IntentType.LIST_TODAY_TASKS,
+                IntentType.LIST_OVERDUE_TASKS,
+            ]
+            or (extracted.intent == IntentType.UNKNOWN_INTENT and is_company_query)
+            or is_company_query
+        ):
             if is_company_query:
                 is_auth, query, err_msg = AuthorizationService.get_authorized_tasks_query(
                     db, sender=sender, request_scope="company_tasks"
@@ -534,6 +540,44 @@ class TaskService:
                         extractor_used=extracted.extractor_used,
                     )
 
+            # If assignee is identified, validate RBAC authorization immediately
+            # before checking missing dates/descriptions (e.g. T04: cross-department assignment must be rejected upfront)
+            if assignee:
+                logger.info(
+                    "[TASK-FLOW: ASSIGNEE-FOUND] ID=%d, Name=%s, Dept=%s, Role=%s",
+                    assignee.user_id,
+                    assignee.name,
+                    assignee.department,
+                    assignee.role,
+                )
+                is_auth, auth_err = AuthorizationService.validate_task_creation(
+                    sender=sender, assignee=assignee
+                )
+                if not is_auth:
+                    AuditService.log(
+                        db,
+                        user_id=sender.user_id,
+                        action="create_task_rejected",
+                        authorized=False,
+                        details=f"Forbidden task assignment from {sender.name} ({sender.role}) to {assignee.name} ({assignee.role})",
+                    )
+                    logger.warning(
+                        "[TASK-FLOW: RBAC-FORBIDDEN] Sender %s (%s, %s) forbidden to assign to %s (%s, %s)",
+                        sender.name,
+                        sender.role,
+                        sender.department,
+                        assignee.name,
+                        assignee.role,
+                        assignee.department,
+                    )
+                    return ChatResponse(
+                        action="forbidden",
+                        success=False,
+                        reply=auth_err or "غير مصرح لك بإسناد هذه المهمة.",
+                        requires_clarification=False,
+                        extractor_used=extracted.extractor_used,
+                    )
+
             # Check for missing essential fields to request clarification in one cohesive prompt
             missing_fields = []
             if not assignee:
@@ -561,43 +605,6 @@ class TaskService:
                     success=False,
                     reply=reply_msg,
                     requires_clarification=True,
-                    extractor_used=extracted.extractor_used,
-                )
-
-            logger.info(
-                "[TASK-FLOW: ASSIGNEE-FOUND] ID=%d, Name=%s, Dept=%s, Role=%s",
-                assignee.user_id,
-                assignee.name,
-                assignee.department,
-                assignee.role,
-            )
-
-            # Check RBAC authorization
-            is_auth, auth_err = AuthorizationService.validate_task_creation(
-                sender=sender, assignee=assignee
-            )
-            if not is_auth:
-                AuditService.log(
-                    db,
-                    user_id=sender.user_id,
-                    action="create_task_rejected",
-                    authorized=False,
-                    details=f"Forbidden task assignment from {sender.name} ({sender.role}) to {assignee.name} ({assignee.role})",
-                )
-                logger.warning(
-                    "[TASK-FLOW: RBAC-FORBIDDEN] Sender %s (%s, %s) forbidden to assign to %s (%s, %s)",
-                    sender.name,
-                    sender.role,
-                    sender.department,
-                    assignee.name,
-                    assignee.role,
-                    assignee.department,
-                )
-                return ChatResponse(
-                    action="forbidden",
-                    success=False,
-                    reply=auth_err or "غير مصرح لك بإسناد هذه المهمة.",
-                    requires_clarification=False,
                     extractor_used=extracted.extractor_used,
                 )
 
