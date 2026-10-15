@@ -25,19 +25,6 @@ def configure_test_settings(monkeypatch):
     monkeypatch.setattr(settings, "intent_mode", "deterministic")
     monkeypatch.setattr(settings, "timezone", "Asia/Riyadh")
     monkeypatch.setattr(settings, "reference_datetime_override", "2026-10-13 09:00:00")
-    monkeypatch.setattr(settings, "telegram_polling_enabled", False)
-    monkeypatch.setattr(
-        settings,
-        "telegram_id_user_map",
-        {
-            1001: 1,  # Telegram 1001 -> منيرة (مدير)
-            1002: 2,  # Telegram 1002 -> سارة (مشرف المشاريع)
-            1003: 3,  # Telegram 1003 -> فهد (موظف المشاريع)
-            1004: 4,  # Telegram 1004 -> خالد (موظف المشاريع)
-            1005: 5,  # Telegram 1005 -> نورة (موظف المالية)
-            1006: 6,  # Telegram 1006 -> عبدالرحمن (مشرف المالية)
-        },
-    )
 
 
 @pytest.fixture

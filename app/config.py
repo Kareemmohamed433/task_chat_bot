@@ -32,10 +32,6 @@ class Settings(BaseSettings):
         default=None, validation_alias="REFERENCE_DATETIME_OVERRIDE"
     )
 
-    # Telegram configuration
-    telegram_bot_token: Optional[str] = Field(default=None, validation_alias="TELEGRAM_BOT_TOKEN")
-    telegram_id_user_map: Dict[int, int] = Field(default_factory=dict, validation_alias="TELEGRAM_ID_USER_MAP")
-    telegram_polling_enabled: bool = Field(default=False, validation_alias="TELEGRAM_POLLING_ENABLED")
 
     # Archival configuration
     task_archive_retention_days: int = Field(default=30, validation_alias="TASK_ARCHIVE_RETENTION_DAYS")
@@ -65,29 +61,6 @@ class Settings(BaseSettings):
             return [int(x) for x in value]
         return [4]
 
-    @field_validator("telegram_id_user_map", mode="before")
-    @classmethod
-    def parse_telegram_map(cls, value: Union[str, Dict, None]) -> Dict[int, int]:
-        """Parse JSON or dict into a mapping of Telegram integer ID to employee user_id."""
-        if not value:
-            return {}
-        if isinstance(value, str):
-            try:
-                raw_dict = json.loads(value)
-            except Exception:
-                # Support comma-separated format '123:1,456:2' as fallback
-                result = {}
-                for pair in value.split(","):
-                    if ":" in pair:
-                        k, v = pair.split(":", 1)
-                        result[int(k.strip())] = int(v.strip())
-                return result
-        elif isinstance(value, dict):
-            raw_dict = value
-        else:
-            return {}
-
-        return {int(k): int(v) for k, v in raw_dict.items()}
 
     def get_timezone(self) -> ZoneInfo:
         """Return the configured ZoneInfo object."""
